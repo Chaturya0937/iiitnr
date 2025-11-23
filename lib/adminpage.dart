@@ -53,7 +53,9 @@ class adminPage extends StatelessWidget {
         child: Column(
           children: [
             Text("Labs&Sports",style: TextStyle(fontWeight: FontWeight.w400,fontSize: 32.0),),
-            FloatingActionButton(
+            // lib/adminpage.dart - Find and replace the FloatingActionButton's onPressed:
+
+FloatingActionButton(
   onPressed: () {
     final TextEditingController labNameController = TextEditingController();
     final TextEditingController inchargeEmailController = TextEditingController();
@@ -78,7 +80,7 @@ class adminPage extends StatelessWidget {
               controller: labNameController,
               decoration: const InputDecoration(
                 labelText: "Lab Name",
-                hintText: "Enter the lab name",
+                hintText: "Enter the lab name (e.g., Graphics Lab)",
               ),
             ),
             const SizedBox(height: 16),
@@ -86,7 +88,7 @@ class adminPage extends StatelessWidget {
               controller: inchargeEmailController,
               decoration: const InputDecoration(
                 labelText: "Incharge Email",
-                hintText: "Enter the email of the incharge",
+                hintText: "Enter the email of the incharge (must be registered)",
               ),
               keyboardType: TextInputType.emailAddress,
             ),
@@ -96,31 +98,61 @@ class adminPage extends StatelessWidget {
                 final labName = labNameController.text.trim();
                 final inchargeEmail = inchargeEmailController.text.trim();
 
+                // Create the dynamic role and collection names
+                final normalizedLabName = labName.replaceAll(' ', '');
+                final newRole = "${normalizedLabName}Incharge";
+                final collectionName = "${normalizedLabName.toLowerCase()}_equipment";
+
                 if (labName.isNotEmpty && inchargeEmail.isNotEmpty) {
                   try {
-                    // Create a new collection for the lab and add metadata doc
-                    final labCollection = FirebaseFirestore.instance.collection(labName.toLowerCase() + "_equipment");
+                    // --- STEP 1: Find User UID by Email ---
+                    final userQuery = await FirebaseFirestore.instance
+                        .collection("Users")
+                        .where("email", isEqualTo: inchargeEmail)
+                        .limit(1)
+                        .get();
 
-                    // Add a metadata document for the lab info
+                    if (userQuery.docs.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text("Incharge email not found. User must have registered first.")),
+                      );
+                      return;
+                    }
+
+                    final inchargeUid = userQuery.docs.first.id;
+
+                    // --- STEP 2: Create Firebase Data Structures & Metadata ---
                     await FirebaseFirestore.instance.collection('labs').doc(labName.toLowerCase()).set({
                       'name': labName,
                       'incharge_email': inchargeEmail,
                       'created_at': FieldValue.serverTimestamp(),
+                      'collection_name': collectionName,
+                      'incharge_role': newRole, 
+                      'scanner_permission': normalizedLabName, // Used for InChargeScanner security
                     });
 
-                    // Optionally add an initial empty doc or setup
-                    await labCollection.add({
-                      'initialized': true,
-                      'timestamp': FieldValue.serverTimestamp(),
-                    });
+                    // Initialize the new equipment collection
+                    await FirebaseFirestore.instance.collection(collectionName).doc('metadata').set({'initialized': true});
 
-                    Navigator.pop(context);
+                    // --- STEP 3: Assign the new Dynamic Role ---
+                    await FirebaseFirestore.instance.collection('Users').doc(inchargeUid).update({
+                      'role': newRole,
+                    });
+                    
+                    ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text("Lab '$labName' and Incharge role assigned successfully.")),
+                    );
+                    Navigator.pop(context); // Close the modal
+                  } on FirebaseException catch (e) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text("Firebase Error: ${e.message}")),
+                    );
                   } catch (e) {
-                    // Handle error or show feedback
-                    print("Error adding lab: $e");
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text("General Error: $e")),
+                    );
                   }
                 } else {
-                  // Show validation error
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text("Please fill in all fields")),
                   );
@@ -134,6 +166,8 @@ class adminPage extends StatelessWidget {
     );
   },
   child: const Icon(Icons.add),
+)
+// ... (rest of lib/adminpage.dart remains the same) ...
 )
           ],
         ),
