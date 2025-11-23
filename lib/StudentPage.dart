@@ -1,13 +1,14 @@
+import 'package:cloud_firestore/cloud_firestore.dart'; // Needed for dynamic lab list
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:iiitnr/Dnpequipment.dart';
+// Note: We keep old imports for now, but comment them out as we transition to dynamic/generic.
+// import 'package:iiitnr/Dnpequipment.dart'; 
+// import 'package:iiitnr/Iotequipment.dart';
+import 'package:iiitnr/GenericLabEquipmentPage.dart'; // <-- New dynamic page
 import 'package:iiitnr/HomePage.dart';
-import 'package:iiitnr/Iotequipment.dart';
-import 'package:iiitnr/RequestNavigationPage%20.dart';
+import 'package:iiitnr/RequestNavigationPage .dart';
 import 'package:iiitnr/personalinfo.dart';
 import 'package:iiitnr/sportsequipment.dart';
-import 'package:iiitnr/GenericLabEquipmentPage.dart';
 
 class StudentPage extends StatelessWidget {
   const StudentPage({super.key});
@@ -27,9 +28,9 @@ class StudentPage extends StatelessWidget {
                 MaterialPageRoute(builder: (context) => const Personalinfo()),
               );
             },
-            child: CircleAvatar(
+            child: const CircleAvatar(
               radius: 15,
-              backgroundColor: const Color.fromARGB(255, 91, 169, 237),
+              backgroundColor: Color.fromARGB(255, 91, 169, 237),
               child: Icon(Icons.person, size: 25, color: Colors.white),
             ),
           ),
@@ -61,7 +62,7 @@ class StudentPage extends StatelessWidget {
               "assets/WhatsApp Image 2025-10-05 at 23.03.34_e30ecfe5.jpg",
               width: MediaQuery.of(context).size.width * 0.7,
             ),
-            SizedBox(height: 16.0,),
+            const SizedBox(height: 16.0,),
             Row(
               children: [
                 Expanded(
@@ -70,7 +71,7 @@ class StudentPage extends StatelessWidget {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => const LabsPage(),
+                          builder: (context) => const LabsPage(), // Leads to dynamic list
                         ),
                       );
                     },
@@ -78,7 +79,7 @@ class StudentPage extends StatelessWidget {
                       height: 150,
                       decoration: BoxDecoration(
                         color: Colors.transparent,
-                        image: DecorationImage(
+                        image: const DecorationImage(
                           image: AssetImage("assets/lab.png"),
                           fit: BoxFit.cover,
                         ),
@@ -116,7 +117,8 @@ class StudentPage extends StatelessWidget {
                       Navigator.push(
                         context,
                         MaterialPageRoute(
-                          builder: (context) => const Sportsequipment(),
+                          // Sports remains static for now, managing its own page and collection
+                          builder: (context) => const Sportsequipment(), 
                         ),
                       );
                     },
@@ -124,7 +126,7 @@ class StudentPage extends StatelessWidget {
                       height: 150,
                       decoration: BoxDecoration(
                         color: Colors.transparent,
-                        image: DecorationImage(
+                        image: const DecorationImage(
                           image: AssetImage(
                             "assets/394a8514c21be4c0fc80e3d2a9879019.jpg",
                           ),
@@ -154,7 +156,7 @@ class StudentPage extends StatelessWidget {
               ],
             ),
 
-            SizedBox(height: 8.0),
+            const SizedBox(height: 8.0),
             Expanded(
               child: GestureDetector(
                 onTap: () {
@@ -185,7 +187,7 @@ class StudentPage extends StatelessWidget {
                   ),
                   child: const Center(
                     child: Text(
-                      "Requets/Accepted Equipment",
+                      "Requests/Accepted Equipment",
                       style: TextStyle(
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
@@ -195,7 +197,7 @@ class StudentPage extends StatelessWidget {
                 ),
               ),
             ),
-            Spacer(flex: 1),
+            const Spacer(flex: 1),
           ],
         ),
       ),
@@ -203,6 +205,7 @@ class StudentPage extends StatelessWidget {
   }
 }
 
+// *** DYNAMIC LABS PAGE ***
 class LabsPage extends StatelessWidget {
   const LabsPage({super.key});
 
@@ -216,64 +219,15 @@ class LabsPage extends StatelessWidget {
           child: Container(color: Colors.black, height: 1.0),
         ),
       ),
-      body: ListView(
-        children: [
-          ListTile(
-            title: const Text("IOT"),
-            onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (context) => const Iotequipment()),
-              );
-            },
-          ),
-          ListTile(
-            title: const Text("DNP"),
-            onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (context) => const Dnpequipment()),
-              );
-            },
-          ),
-          ListTile(
-            title: const Text("Test 1"),
-            onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (context) => const Placeholder()),
-              );
-            },
-          ),
-          ListTile(
-            title: const Text("Test 2"),
-            onTap: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (context) => const Placeholder()),
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
-}
-class LabsPage extends StatelessWidget {
-  const LabsPage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text("Labs"),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1.0), // height of the black line
-          child: Container(color: Colors.black, height: 1.0),
-        ),
-      ),
-      // Use a StreamBuilder to dynamically read available labs
+      // Use a StreamBuilder to dynamically read available labs from Firestore
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance.collection('labs').snapshots(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+             return Center(child: Text("Error loading labs: ${snapshot.error}"));
           }
           if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
             return const Center(child: Text("No labs currently registered."));
@@ -285,15 +239,19 @@ class LabsPage extends StatelessWidget {
             itemCount: labDocs.length,
             itemBuilder: (context, index) {
               final lab = labDocs[index];
-              final labName = lab['name'];
-              final collectionName = lab['collection_name']; // Get the dynamic collection name
+              final labName = lab['name'] as String? ?? 'Unnamed Lab';
+              final collectionName = lab['collection_name'] as String? ?? ''; 
+
+              // Skip rendering if vital fields are missing
+              if (collectionName.isEmpty) return const SizedBox.shrink();
 
               return ListTile(
                 title: Text(labName),
                 onTap: () {
                   Navigator.of(context).push(
                     MaterialPageRoute(
-                      builder: (context) => GenericLabEquipmentPage( // <--- ROUTE TO NEW GENERIC PAGE
+                      // Route to the Generic page, passing the required data
+                      builder: (context) => GenericLabEquipmentPage( 
                         labName: labName, 
                         collectionName: collectionName,
                       ),
