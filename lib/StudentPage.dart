@@ -1,4 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:iiitnr/Dnpequipment.dart';
 import 'package:iiitnr/HomePage.dart';
@@ -6,6 +7,7 @@ import 'package:iiitnr/Iotequipment.dart';
 import 'package:iiitnr/RequestNavigationPage%20.dart';
 import 'package:iiitnr/personalinfo.dart';
 import 'package:iiitnr/sportsequipment.dart';
+import 'package:iiitnr/GenericLabEquipmentPage.dart';
 
 class StudentPage extends StatelessWidget {
   const StudentPage({super.key});
@@ -249,6 +251,59 @@ class LabsPage extends StatelessWidget {
             },
           ),
         ],
+      ),
+    );
+  }
+}
+class LabsPage extends StatelessWidget {
+  const LabsPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text("Labs"),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1.0), // height of the black line
+          child: Container(color: Colors.black, height: 1.0),
+        ),
+      ),
+      // Use a StreamBuilder to dynamically read available labs
+      body: StreamBuilder<QuerySnapshot>(
+        stream: FirebaseFirestore.instance.collection('labs').snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+            return const Center(child: Text("No labs currently registered."));
+          }
+
+          final labDocs = snapshot.data!.docs;
+          
+          return ListView.builder(
+            itemCount: labDocs.length,
+            itemBuilder: (context, index) {
+              final lab = labDocs[index];
+              final labName = lab['name'];
+              final collectionName = lab['collection_name']; // Get the dynamic collection name
+
+              return ListTile(
+                title: Text(labName),
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (context) => GenericLabEquipmentPage( // <--- ROUTE TO NEW GENERIC PAGE
+                        labName: labName, 
+                        collectionName: collectionName,
+                      ),
+                    ),
+                  );
+                },
+              );
+            },
+          );
+        },
       ),
     );
   }
