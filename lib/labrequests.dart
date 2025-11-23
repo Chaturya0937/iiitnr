@@ -1,137 +1,114 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:iiitnr/labqr.dart';
-import 'package:iiitnr/main.dart';
 
-class LabRequests extends StatefulWidget {
-  const LabRequests({super.key});
-
-  @override
-  State<LabRequests> createState() => _LabRequestsState();
-}
-
-class _LabRequestsState extends State<LabRequests> {
-  User? user = FirebaseAuth.instance.currentUser;
-
-  Future<List<QueryDocumentSnapshot>> _fetchBatches(String type) async {
-    final snapshot = await FirebaseFirestore.instance
-        .collection("batchid")
-        .where('type', isEqualTo: type)
-        .get();
-    return snapshot.docs;
-  }
-
-  void _openBatch(String batchId) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => Labqr(batchid: batchId)),
-    );
-  }
+class LabRequests extends StatelessWidget {
+  // NEW: Accepts the dynamic equipment collection name
+  final String collectionName; 
+  
+  const LabRequests({super.key, required this.collectionName});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Lab Requests"),
+        title: Text("Requests for ${collectionName.split('_').first.toUpperCase()}"),
         bottom: PreferredSize(
-          preferredSize: Size.fromHeight(1.0), // height of the black line
+          preferredSize: const Size.fromHeight(1.0),
           child: Container(color: Colors.black, height: 1.0),
         ),
       ),
-      body: BackgroundImageWrapper(
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'IOT Equipment Requests:',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                ),
-                SizedBox(
-                  height: 300,
-                  child: FutureBuilder<List<QueryDocumentSnapshot>>(
-                    future: _fetchBatches('IOT'),
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const Center(child: CircularProgressIndicator());
-                      }
-                      if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                        return const Center(
-                          child: Text("There are no requests"),
-                        );
-                      }
-                      return ListView.builder(
-                        itemCount: snapshot.data!.length,
-                        itemBuilder: (context, index) {
-                          var data =
-                              snapshot.data![index].data()
-                                  as Map<String, dynamic>;
-                          Timestamp timestamp = data['time'];
-                          DateTime date = timestamp.toDate();
-                          String batchId = date.toString();
-                          return Card(
-                            child: ListTile(
-                              title: Text('Batch ID: $batchId'),
-                              onTap: (){
-                                batchId = snapshot.data![index].id;
-                                _openBatch(batchId);
-                              },
-                            ),
-                          );
-                        },
-                      );
-                    },
+      body: StreamBuilder<QuerySnapshot>(
+        // --- DYNAMICALLY QUERY THE REQUESTS COLLECTION ---
+        // Assuming requests are stored in a 'Requests' subcollection 
+        // within the specific equipment collection (e.g., 'graphicslab_equipment/Requests')
+        stream: FirebaseFirestore.instance
+            .collection('Requests') // Assuming a common 'Requests' collection for all, filtered by collectionName
+            .where('equipment_collection', isEqualTo: collectionName) // NEW: Filter by the target collection name
+            .where('status', isEqualTo: 'pending') // Assuming a status field exists
+            .snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return Center(child: Text("Error: ${snapshot.error}"));
+          }
+          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+            return const Center(child: Text("No pending requests."));
+          }
+
+          final pendingRequests = snapshot.data!.docs;
+
+          return ListView.builder(
+            itemCount: pendingRequests.length,
+            itemBuilder: (context, index) {
+              final request = pendingRequests[index];
+              final data = request.data() as Map<String, dynamic>;
+              
+              // Safely extract data fields
+              final studentEmail = data['Email'] ?? 'N/A';
+              final batchId = data['batchId'] ?? 'N/A';
+              final requestedItem = data['Name'] ?? 'Unknown Item';
+              final count = data['count'] ?? 0;
+              final timestamp = data['createdAt'] is Timestamp 
+                  ? (data['createdAt'] as Timestamp).toDate().toString() 
+                  : 'N/A';
+
+              return Card(
+                elevation: 2,
+                margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 10),
+                child: ListTile(
+                  title: Text("$requestedItem x $count"),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text("Batch ID: $batchId"),
+                      Text("Student: $studentEmail"),
+                      Text("Requested on: $timestamp"),
+                    ],
+                  ),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Approve Button
+                      IconButton(
+                        icon: const Icon(Icons.check_circle, color: Colors.green),
+                        onPressed: () => _handleRequest(context, request.id, true),
+                      ),
+                      // Reject Button
+                      IconButton(
+                        icon: const Icon(Icons.cancel, color: Colors.red),
+                        onPressed: () => _handleRequest(context, request.id, false),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 16),
-                const Text(
-                  'DNP Equipment Requests:',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                ),
-                SizedBox(
-                  height: 300,
-                  child: FutureBuilder<List<QueryDocumentSnapshot>>(
-                    future: _fetchBatches('DNP'),
-                    builder: (context, snapshot) {
-                      if (snapshot.connectionState == ConnectionState.waiting) {
-                        return const Center(child: CircularProgressIndicator());
-                      }
-                      if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                        return const Center(
-                          child: Text("There are no requests"),
-                        );
-                      }
-                      return ListView.builder(
-                        itemCount: snapshot.data!.length,
-                        itemBuilder: (context, index) {
-                          var data =
-                              snapshot.data![index].data()
-                                  as Map<String, dynamic>;
-                          Timestamp timestamp = data['time'];
-                          DateTime date = timestamp.toDate();
-                          String batchId = date.toString();
-                          return Card(
-                            child: ListTile(
-                              title: Text('Batch ID: $batchId'),
-                              onTap: () {
-                                batchId = snapshot.data![index].id;
-                                _openBatch(batchId);
-                              },
-                            ),
-                          );
-                        },
-                      );
-                    },
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
+              );
+            },
+          );
+        },
       ),
     );
+  }
+
+  // Function to approve or reject a request
+  Future<void> _handleRequest(BuildContext context, String requestId, bool approve) async {
+    try {
+      await FirebaseFirestore.instance
+          .collection('Requests')
+          .doc(requestId)
+          .update({
+        'status': approve ? 'accepted' : 'rejected',
+        'processed_at': FieldValue.serverTimestamp(),
+        'processed_by': FirebaseAuth.instance.currentUser?.email ?? 'Unknown In-Charge',
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Request $requestId ${approve ? 'Approved' : 'Rejected'}!")),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Failed to process request: $e")),
+      );
+    }
   }
 }
