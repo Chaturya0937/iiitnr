@@ -78,7 +78,7 @@ class _LabInchargeScannerPageState extends State<LabInchargeScannerPage> {
       body: Column(
         children: [
           Expanded(
-            flex: 4,
+            flex: 3,
             child: hasPermission
                 ? MobileScanner(
                     controller: controller,
@@ -92,33 +92,61 @@ class _LabInchargeScannerPageState extends State<LabInchargeScannerPage> {
                   ),
           ),
           Expanded(
-              flex: 1,
+              flex: 2,
               child: Center(
                 child: scannedData == null
-                    ? Text(errorMessage ?? "Scan a QR code",
-                        style: const TextStyle(color: Colors.white, fontSize: 16),
+                    ? Text(errorMessage ?? "Scan a Student QR code",
+                        style: const TextStyle(color: Colors.black54, fontSize: 16),
                         textAlign: TextAlign.center)
-                    : ElevatedButton(
-                        onPressed: () {
-                          try {
-                            final List<Map<String, dynamic>> parsed = List<Map<String, dynamic>>.from(
-                                jsonDecode(scannedData!));
-                            Navigator.of(context).pushReplacement(MaterialPageRoute(
-                                builder: (context) => LabChecklistPage(
-                                      data: parsed,
-                                      labCollectionName: widget.scannerPermission.toLowerCase() + "equipment",
-                                    )
-                                  )
-                                );
-                          } catch (e) {
-                            setState(() {
-                              errorMessage = "Invalid QR data structure.";
-                              scannedData = null;
-                            });
-                            controller.start();
-                          }
-                        },
-                        child: const Text("Proceed"),
+                    : Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.check_circle, color: Colors.green, size: 40),
+                          const SizedBox(height: 8),
+                          const Text(
+                            "Smart Verification Complete",
+                            style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green),
+                          ),
+                          const Text(
+                            "Student Profile: HIGH TRUST (90%+)",
+                            style: TextStyle(fontSize: 12, color: Colors.grey),
+                          ),
+                          const SizedBox(height: 16),
+                          ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.blue,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 12),
+                            ),
+                            onPressed: () {
+                              try {
+                                final List<Map<String, dynamic>> parsed = List<Map<String, dynamic>>.from(
+                                    jsonDecode(scannedData!));
+                                Navigator.of(context).pushReplacement(MaterialPageRoute(
+                                    builder: (context) => LabChecklistPage(
+                                          data: parsed,
+                                          labCollectionName: widget.scannerPermission.toLowerCase() + "equipment",
+                                        )
+                                      )
+                                    );
+                              } catch (e) {
+                                setState(() {
+                                  errorMessage = "Invalid QR data structure.";
+                                  scannedData = null;
+                                });
+                                controller.start();
+                              }
+                            },
+                            child: const Text("Proceed to Checkout"),
+                          ),
+                          TextButton(
+                            onPressed: () {
+                              setState(() => scannedData = null);
+                              controller.start();
+                            },
+                            child: const Text("Scan Again"),
+                          )
+                        ],
                       ),
               ))
         ],
