@@ -7,6 +7,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:iiitnr/AdminAnalyticsPage.dart'; // New Import
 import 'package:iiitnr/HomePage.dart';
 import 'package:iiitnr/LabInchargeScanner.dart';
 import 'package:iiitnr/main.dart';
@@ -70,17 +71,16 @@ class _LabInchargeState extends State<LabIncharge> {
         final dynamic secondValue = row[1];
 
         if (identifier.isNotEmpty) {
-          // Check if we are uploading students or equipment based on the role
+          // ADMIN ROLE: Bulk Student Import with Trust Score Initialization
           if (widget.role.toLowerCase() == 'admin') {
-            // For bulk student/user upload, initialize trust_score to 0
             newItems.add({
               'Email': identifier,
               'Name': secondValue.toString().trim(),
-              'trust_score': 0, // Automatically set to 0 for every student
+              'trust_score': 0, // Initializing every student with 0
               'role': 'Student',
             });
           } else {
-            // Standard equipment upload logic
+            // OTHER ROLES: Standard Equipment Upload
             final int eqCount = int.tryParse(secondValue.toString().trim()) ?? 0;
             if (eqCount > 0) {
               newItems.add({'Name': identifier, 'count': eqCount});
@@ -92,9 +92,7 @@ class _LabInchargeState extends State<LabIncharge> {
 
       if (newItems.isEmpty) return;
 
-      // Update Firestore
       if (widget.role.toLowerCase() == 'admin') {
-        // Bulk update users collection
         final batch = FirebaseFirestore.instance.batch();
         for (var student in newItems) {
           final docRef = FirebaseFirestore.instance.collection('users').doc(student['Email']);
@@ -102,7 +100,6 @@ class _LabInchargeState extends State<LabIncharge> {
         }
         await batch.commit();
       } else {
-        // Standard equipment collection update
         await FirebaseFirestore.instance
             .collection('equipment')
             .doc('${widget.role}equipment')
@@ -111,13 +108,17 @@ class _LabInchargeState extends State<LabIncharge> {
         }, SetOptions(merge: true));
       }
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Successfully processed $addedCount items.')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Successfully processed $addedCount items.')),
+        );
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
-      );
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
     }
   }
 
@@ -210,6 +211,27 @@ class _LabInchargeState extends State<LabIncharge> {
                   ? _buildUserList()
                   : _buildEquipmentList(),
             ),
+            
+            // NEW FEATURE: Analytics Button
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const AdminAnalyticsPage()),
+                  );
+                },
+                icon: const Icon(Icons.analytics_outlined),
+                label: const Text('View Data Analytics'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.deepPurple,
+                  foregroundColor: Colors.white,
+                  minimumSize: const Size(double.infinity, 50),
+                ),
+              ),
+            ),
+
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: ElevatedButton.icon(
@@ -221,9 +243,11 @@ class _LabInchargeState extends State<LabIncharge> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.green,
                   foregroundColor: Colors.white,
+                  minimumSize: const Size(double.infinity, 50),
                 ),
               ),
             ),
+
             if (widget.role.toLowerCase() != 'admin')
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -241,12 +265,17 @@ class _LabInchargeState extends State<LabIncharge> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blue,
                     foregroundColor: Colors.white,
+                    minimumSize: const Size(double.infinity, 50),
                   ),
                 ),
               ),
+
             Padding(
               padding: const EdgeInsets.all(16),
               child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  minimumSize: const Size(double.infinity, 50),
+                ),
                 onPressed: () {
                   Navigator.push(
                     context,
@@ -260,15 +289,12 @@ class _LabInchargeState extends State<LabIncharge> {
                 child: const Text('Scan QR Code'),
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.only(bottom: 16.0),
-              child: FloatingActionButton(
-                onPressed: _showAddDialog,
-                child: const Icon(Icons.add),
-              ),
-            ),
           ],
         ),
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _showAddDialog,
+        child: const Icon(Icons.add),
       ),
     );
   }
@@ -314,63 +340,4 @@ class _LabInchargeState extends State<LabIncharge> {
           itemBuilder: (context, index) {
             final item = equipment[index] as Map<String, dynamic>;
             final String name = item['Name']?.toString() ?? '';
-            final int count = (item['count'] ?? 0) as int;
-            return ListTile(
-              title: Text('$name : $count'),
-              trailing: IconButton(
-                icon: const Icon(Icons.remove_circle_outline),
-                onPressed: () async {
-                  equipment.removeAt(index);
-                  await snapshot.data!.reference.update({'equipment': equipment});
-                },
-              ),
-            );
-          },
-        );
-      },
-    );
-  }
-}
-
-class Accepted extends StatefulWidget {
-  final String role;
-  const Accepted({super.key, required this.role});
-
-  @override
-  State<Accepted> createState() => _AcceptedState();
-}
-
-class _AcceptedState extends State<Accepted> {
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Accepted Requests')),
-      body: BackgroundImageWrapper(
-        child: StreamBuilder<QuerySnapshot>(
-          stream: FirebaseFirestore.instance
-              .collection('Requests')
-              .where('status', isEqualTo: true)
-              .where('equipment_collection', isEqualTo: '${widget.role}equipment')
-              .snapshots(),
-          builder: (context, snapshot) {
-            if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-              return const Center(child: Text('No accepted equipment yet.'));
-            }
-            final docs = snapshot.data!.docs;
-            return ListView.builder(
-              itemCount: docs.length,
-              itemBuilder: (context, index) {
-                final data = docs[index].data() as Map<String, dynamic>;
-                return ListTile(
-                  leading: const Icon(Icons.check_circle, color: Colors.green),
-                  title: Text('${data['Name']} (x${data['count']})'),
-                  subtitle: Text(data['Email'] ?? 'Unknown'),
-                );
-              },
-            );
-          },
-        ),
-      ),
-    );
-  }
-}
+            final int count = (item['count']
