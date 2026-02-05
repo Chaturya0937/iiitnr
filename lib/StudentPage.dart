@@ -4,9 +4,8 @@ import 'package:flutter/material.dart';
 
 import 'package:iiitnr/GenericLabEquipmentPage.dart';
 import 'package:iiitnr/HomePage.dart';
-import 'package:iiitnr/RequestNavigationPage .dart';
+import 'package:iiitnr/ReturnPage.dart'; // New Import
 import 'package:iiitnr/personalinfo.dart';
-import 'package:iiitnr/sportsequipment.dart';
 
 class StudentPage extends StatefulWidget {
   const StudentPage({super.key});
@@ -59,7 +58,6 @@ class _StudentPageState extends State<StudentPage> {
       ),
       body: Column(
         children: [
-          // Global Search Bar
           Padding(
             padding: const EdgeInsets.all(16.0),
             child: TextField(
@@ -90,12 +88,32 @@ class _StudentPageState extends State<StudentPage> {
     );
   }
 
-  // Original Category View (Labs/Sports buttons)
   Widget _buildMainDashboard(BuildContext context) {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16.0),
       child: Column(
         children: [
+          // NEW FEATURE: Return Equipment Button
+          Padding(
+            padding: const EdgeInsets.only(bottom: 16.0),
+            child: ElevatedButton.icon(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const ReturnEquipmentPage()),
+                );
+              },
+              icon: const Icon(Icons.assignment_return_outlined),
+              label: const Text("Return Borrowed Equipment"),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orangeAccent,
+                foregroundColor: Colors.black,
+                minimumSize: const Size(double.infinity, 50),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ),
+          
           Image.asset(
             "assets/WhatsApp Image 2025-10-05 at 23.03.34_e30ecfe5.jpg",
             width: MediaQuery.of(context).size.width * 0.7,
@@ -117,23 +135,12 @@ class _StudentPageState extends State<StudentPage> {
                     fit: BoxFit.cover,
                   ),
                   borderRadius: BorderRadius.circular(12),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Colors.black26,
-                      blurRadius: 4,
-                      offset: Offset(2, 2),
-                    ),
-                  ],
+                  boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(2, 2))],
                 ),
                 child: const Center(
                   child: Text(
                     "Labs",
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black,
-                      shadows: [Shadow(blurRadius: 4, color: Colors.white)],
-                    ),
+                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.black, shadows: [Shadow(blurRadius: 4, color: Colors.white)]),
                   ),
                 ),
               ),
@@ -161,23 +168,12 @@ class _StudentPageState extends State<StudentPage> {
                     fit: BoxFit.cover,
                   ),
                   borderRadius: BorderRadius.circular(12),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Colors.black26,
-                      blurRadius: 4,
-                      offset: Offset(2, 2),
-                    ),
-                  ],
+                  boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(2, 2))],
                 ),
                 child: const Center(
                   child: Text(
                     "Sports",
-                    style: TextStyle(
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.white,
-                      shadows: [Shadow(blurRadius: 4, color: Colors.black)],
-                    ),
+                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white, shadows: [Shadow(blurRadius: 4, color: Colors.black)]),
                   ),
                 ),
               ),
@@ -188,41 +184,25 @@ class _StudentPageState extends State<StudentPage> {
     );
   }
 
-  // New Search Results View
   Widget _buildGlobalSearchView() {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance.collection('equipment').snapshots(),
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-          return const Center(child: Text("No equipment data available."));
-        }
+        if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
 
         List<Map<String, dynamic>> allMatches = [];
-
         for (var doc in snapshot.data!.docs) {
-          // Extracts Lab name from doc ID like "labAequipment" -> "LABA"
           String labName = doc.id.replaceAll('equipment', '').toUpperCase();
           List<dynamic> items = doc['equipment'] ?? [];
-
           for (var item in items) {
             String name = item['Name'].toString().toLowerCase();
             if (name.contains(searchQuery)) {
-              allMatches.add({
-                'name': item['Name'],
-                'count': item['count'],
-                'location': labName,
-                'collection': doc.id,
-              });
+              allMatches.add({'name': item['Name'], 'count': item['count'], 'location': labName, 'collection': doc.id});
             }
           }
         }
 
-        if (allMatches.isEmpty) {
-          return const Center(child: Text("No equipment matches your search."));
-        }
+        if (allMatches.isEmpty) return const Center(child: Text("No matches found."));
 
         return ListView.builder(
           itemCount: allMatches.length,
@@ -234,17 +214,8 @@ class _StudentPageState extends State<StudentPage> {
                 leading: const Icon(Icons.inventory_2, color: Colors.blue),
                 title: Text(item['name']),
                 subtitle: Text("Available: ${item['count']} | Lab: ${item['location']}"),
-                trailing: const Icon(Icons.chevron_right),
                 onTap: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => GenericLabEquipmentPage(
-                        labName: item['location'],
-                        collectionName: item['collection'],
-                      ),
-                    ),
-                  );
+                  Navigator.push(context, MaterialPageRoute(builder: (context) => GenericLabEquipmentPage(labName: item['location'], collectionName: item['collection'])));
                 },
               ),
             );
@@ -267,58 +238,22 @@ class _LabPageState extends State<LabPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color.fromARGB(255, 255, 255, 255),
-      appBar: AppBar(
-        title: const Text("Lab Equipment"),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () => setState(() {}),
-          ),
-        ],
-        bottom: const PreferredSize(
-          preferredSize: Size.fromHeight(1.0),
-          child: ColoredBox(color: Colors.black, child: SizedBox(height: 1.0)),
-        ),
-      ),
+      appBar: AppBar(title: const Text("Lab Equipment")),
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance.collection('labs').snapshots(),
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return Center(child: Text("Error loading labs: ${snapshot.error}"));
-          }
-          if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
-            return const Center(child: Text("No labs currently registered."));
-          }
-
+          if (!snapshot.hasData) return const Center(child: CircularProgressIndicator());
           final labDocs = snapshot.data!.docs;
-
           return ListView.builder(
             itemCount: labDocs.length,
             itemBuilder: (context, index) {
               final lab = labDocs[index];
-              final labName = lab['name'] as String? ?? 'Unnamed Lab';
-              final collectionName = lab['collection_name'] as String? ?? '';
-
-              if (collectionName.isEmpty) return const SizedBox.shrink();
-
               return Card(
                 margin: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
                 child: ListTile(
-                  title: Text(labName),
-                  subtitle: const Text('Tap to view & request equipment'),
+                  title: Text(lab['name'] ?? 'Unnamed Lab'),
                   onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => GenericLabEquipmentPage(
-                          labName: labName,
-                          collectionName: collectionName,
-                        ),
-                      ),
-                    );
+                    Navigator.push(context, MaterialPageRoute(builder: (context) => GenericLabEquipmentPage(labName: lab['name'], collectionName: lab['collection_name'])));
                   },
                 ),
               );
