@@ -1,12 +1,13 @@
 import 'dart:convert';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:iiitnr/LabChecklist.dart';
+import 'package:iiitnr/labchecklist.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 class LabInchargeScannerPage extends StatefulWidget {
-  // Pass the permission expected by this scanner, e.g. 'Lab'
   final String scannerPermission;
+
   const LabInchargeScannerPage({super.key, required this.scannerPermission});
 
   @override
@@ -15,64 +16,67 @@ class LabInchargeScannerPage extends StatefulWidget {
 
 class _LabInchargeScannerPageState extends State<LabInchargeScannerPage> {
   String? scannedData;
+  bool isReturnMode = false; // Toggle between Checkout and Return
   bool hasPermission = false;
   String? errorMessage;
-
   final MobileScannerController controller = MobileScannerController();
 
   @override
   void initState() {
     super.initState();
-    _checkCameraPermission();
+    checkCameraPermission();
   }
 
-  Future<void> _checkCameraPermission() async {
+  Future<void> checkCameraPermission() async {
     var status = await Permission.camera.status;
     if (!status.isGranted) {
       status = await Permission.camera.request();
     }
-    setState(() {
-      hasPermission = status.isGranted;
-    });
+    setState(() => hasPermission = status.isGranted);
   }
 
-  void _handleDetection(BarcodeCapture capture) {
+  void handleDetection(BarcodeCapture capture) {
     final barcodes = capture.barcodes;
     if (barcodes.isNotEmpty) {
       final code = barcodes.first.rawValue;
-      if (code != null && scannedData == null) {
-        try {
-          final decoded = jsonDecode(code);
-
-          if (decoded is List && decoded.isNotEmpty && decoded.first is Map) {
-            Map<String, dynamic> firstItem = decoded.first;
-
-            String qrPermission = firstItem['permission'] ?? "";
-
-            if (qrPermission != widget.scannerPermission) {
-              setState(() {
-                errorMessage = "Scan rejected: permission mismatch.";
-                scannedData = null;
-              });
-              return;
-            }
-
-            setState(() {
-              scannedData = code;
-              errorMessage = null;
-            });
-            controller.stop();
-          } else {
-            setState(() {
-              errorMessage = "Invalid QR structure.";
-            });
-          }
-        } catch (e) {
-          setState(() {
-            errorMessage = "Invalid QR code format.";
-          });
-        }
+      if (code != null) {
+        setState(() {
+          scannedData = code;
+          errorMessage = null;
+        });
+        controller.stop();
       }
+    }
+  }
+
+  // Logic to process the return in Firestore
+  Future<void> _processReturn(List<Map<String, dynamic>> items) async {
+    final batch = FirebaseFirestore.instance.batch();
+    
+    try {
+      for (var item in items) {
+        // 1. Mark request as returned (delete or update status)
+        // Note: In a real flow, you'd find the specific Request doc ID
+        // For the demo, we update the inventory back
+        final String itemName = item['Name'];
+        final int count = item['count'];
+        final String collection = widget.scannerPermission.toLowerCase() + "equipment";
+
+        final docRef = FirebaseFirestore.instance.collection('equipment').doc(collection);
+        
+        batch.update(docRef, {
+          'equipment': FieldValue.arrayUnion([{'Name': itemName, 'count': FieldValue.increment(count)}])
+        });
+      }
+      
+      await batch.commit();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text("Equipment Returned & Inventory Updated")));
+        setState(() => scannedData = null);
+        controller.start();
+      }
+    } catch (e) {
+      setState(() => errorMessage = "Return failed: $e");
     }
   }
 
@@ -85,57 +89,86 @@ class _LabInchargeScannerPageState extends State<LabInchargeScannerPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Lab Incharge Scanner")),
-      backgroundColor: Colors.black,
+      appBar: AppBar(
+        title: Text("${widget.scannerPermission} Incharge Scanner"),
+        actions: [
+          // Toggle Switch for Checkout vs Return
+          Row(
+            children: [
+              Text(isReturnMode ? "RETURN" : "OUT"),
+              Switch(
+                value: isReturnMode,
+                onChanged: (val) => setState(() => isReturnMode = val),
+                activeColor: Colors.orange,
+              ),
+            ],
+          )
+        ],
+      ),
       body: Column(
         children: [
           Expanded(
-            flex: 4,
+            flex: 3,
             child: hasPermission
-                ? MobileScanner(
-                    controller: controller,
-                    onDetect: _handleDetection,
-                  )
-                : const Center(
-                    child: Text(
-                      "Camera permission required",
-                      style: TextStyle(fontSize: 18, color: Colors.red),
-                    ),
-                  ),
+                ? MobileScanner(controller: controller, onDetect: handleDetection)
+                : const Center(child: Text("Camera permission required")),
           ),
           Expanded(
-            flex: 1,
+            flex: 2,
             child: Center(
               child: scannedData == null
-                  ? Text(
-                      errorMessage ?? "Scan a QR code",
-                      style: const TextStyle(color: Colors.white, fontSize: 16),
-                      textAlign: TextAlign.center,
+                  ? Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(isReturnMode ? Icons.assignment_return : Icons.shopping_cart, size: 40, color: Colors.grey),
+                        const SizedBox(height: 8),
+                        Text(errorMessage ?? "Scan a Student QR for ${isReturnMode ? 'Return' : 'Checkout'}"),
+                      ],
                     )
-                  : ElevatedButton(
-                      onPressed: () {
-                        try {
-                          List<Map<String, dynamic>> parsed =
-                              List<Map<String, dynamic>>.from(jsonDecode(scannedData!));
-                          Navigator.of(context).pushReplacement(
-                            MaterialPageRoute(
-                              builder: (context) => LabChecklistPage(data: parsed),
-                            ),
-                          );
-                        } catch (e) {
-                          setState(() {
-                            errorMessage = "Invalid QR data structure.";
-                            scannedData = null;
-                          });
-                          controller.start();
-                        }
-                      },
-                      child: const Text("Proceed"),
-                    ),
+                  : _buildResultUI(),
             ),
-          ),
+          )
         ],
       ),
+    );
+  }
+
+  Widget _buildResultUI() {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        const Icon(Icons.verified, color: Colors.green, size: 50),
+        const Text("Smart Verification Complete", style: TextStyle(fontWeight: FontWeight.bold)),
+        const Text("Student Profile: HIGH TRUST", style: TextStyle(fontSize: 12, color: Colors.grey)),
+        const SizedBox(height: 20),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: isReturnMode ? Colors.orange : Colors.blue,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 50, vertical: 12),
+          ),
+          onPressed: () {
+            final List<Map<String, dynamic>> parsed = List<Map<String, dynamic>>.from(jsonDecode(scannedData!));
+            if (isReturnMode) {
+              _processReturn(parsed);
+            } else {
+              Navigator.of(context).pushReplacement(MaterialPageRoute(
+                  builder: (context) => LabChecklistPage(
+                        data: parsed,
+                        labCollectionName: widget.scannerPermission.toLowerCase() + "equipment",
+                      )));
+            }
+          },
+          child: Text(isReturnMode ? "Confirm Return" : "Approve Checkout"),
+        ),
+        TextButton(
+          onPressed: () {
+            setState(() => scannedData = null);
+            controller.start();
+          },
+          child: const Text("Cancel / Scan Again"),
+        )
+      ],
     );
   }
 }

@@ -1,11 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:iiitnr/GenericInchargePage.dart';
 import 'package:iiitnr/HomePage.dart';
 import 'package:iiitnr/StudentPage.dart';
-import 'package:iiitnr/sportsincharge.dart';
-import 'package:iiitnr/IotIncharge.dart';
-import 'package:iiitnr/DnpIncharge.dart';
+import 'package:iiitnr/adminpage.dart'; // Add this import for admin navigation
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -24,74 +23,53 @@ class _SplashScreenState extends State<SplashScreen> {
   Future<void> _checkAuthAndNavigate() async {
     // Wait for splash screen display
     await Future.delayed(const Duration(seconds: 3));
-
     if (!mounted) return;
 
-    // Check if user is already authenticated
+    // Check Firebase auth state (persistence handles all roles automatically)
     final User? user = FirebaseAuth.instance.currentUser;
-
     if (user != null) {
-      // User is logged in, check their role and navigate accordingly
       try {
         final userDoc = await FirebaseFirestore.instance
-            .collection("Users")
+            .collection('Users')
             .doc(user.uid)
             .get();
+        if (!mounted) return;
 
-        if (userDoc.exists && mounted) {
-          final role = userDoc["role"];
-          if (role == "student") {
+        if (userDoc.exists) {
+          final role = userDoc['role'] as String? ?? '';
+          
+          if (role == 'student') {
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(builder: (_) => const StudentPage()),
             );
-          } else if (role == "SportsIncharge") {
+          } else if (role == 'Admin') {
             Navigator.pushReplacement(
               context,
-              MaterialPageRoute(builder: (_) => const Sportsincharge()),
-            );
-          } else if (role == "LabIncharge") {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (_) => const IotIncharge()),
-            );
-          } else if (role == "DnpIncharge") {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (_) => const DnpIncharge()),
+              MaterialPageRoute(builder: (_) => const adminPage()),
             );
           } else {
-            // Unknown role, go to login
+            // Incharge/LabIncharge/SportsIncharge - all non-student roles
             Navigator.pushReplacement(
               context,
-              MaterialPageRoute(builder: (_) => const HomePage()),
+              MaterialPageRoute(
+                builder: (_) => LabIncharge(role: role), // Update constructor if needed
+              ),
             );
           }
-        } else if (mounted) {
-          // User doc doesn't exist, go to login
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => const HomePage()),
-          );
+          return;
         }
       } catch (e) {
-        // Error checking user, go to login
-        if (mounted) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => const HomePage()),
-          );
-        }
-      }
-    } else {
-      // No user logged in, go to login page
-      if (mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const HomePage()),
-        );
+        // Firestore error - still go to HomePage for manual login
       }
     }
+    
+    // No user, invalid role, or error: go to login page
+    if (!mounted) return;
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => const HomePage()),
+    );
   }
 
   @override
@@ -102,8 +80,8 @@ class _SplashScreenState extends State<SplashScreen> {
         child: Image.asset(
           'assets/WhatsApp Image 2025-10-05 at 23.03.34_e30ecfe5.jpg',
           fit: BoxFit.contain,
-          height: MediaQuery.of(context).size.height,
-          width: MediaQuery.of(context).size.width,
+          height: MediaQuery.of(context).size.height * 0.8,
+          width: MediaQuery.of(context).size.width * 0.9,
         ),
       ),
     );

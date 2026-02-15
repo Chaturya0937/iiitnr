@@ -1,11 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:iiitnr/Adminpage.dart';
-import 'package:iiitnr/IotIncharge.dart';
+import 'package:iiitnr/GenericInchargePage.dart';
 import 'package:iiitnr/StudentPage.dart';
-import 'package:iiitnr/sportsincharge.dart';
-import 'package:iiitnr/DnpIncharge.dart';
+import 'package:iiitnr/adminpage.dart';
+
 
 class HomePage extends StatefulWidget {
   const HomePage({super.key});
@@ -38,26 +37,16 @@ class _HomePageState extends State<HomePage> {
               context,
               MaterialPageRoute(builder: (_) => const StudentPage()),
             );
-          } else if (role == "SportsIncharge") {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (_) => const Sportsincharge()),
-            );
-          } else if (role == "IotIncharge") {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (_) => const IotIncharge()),
-            );
-          } else if (role == "DnpIncharge") {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (_) => const DnpIncharge()),
-            );
-          }
-           else if (role == "Admin") {
+          }else if (role == "Admin") {
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(builder: (_) => const adminPage()),
+            );
+          }
+          else{
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (_) =>  LabIncharge(role: role,)),
             );
           }
         }

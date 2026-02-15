@@ -7,7 +7,8 @@ import 'package:qr_flutter/qr_flutter.dart';
 
 class Labqr extends StatefulWidget {
   final String batchid;
-  const Labqr({super.key, required this.batchid});
+  final String role;
+  const Labqr({super.key, required this.batchid,required this.role});
 
   @override
   State<Labqr> createState() => _LabqrState();
@@ -22,7 +23,7 @@ class _LabqrState extends State<Labqr> {
     }
 
     return FirebaseFirestore.instance
-        .collection('LabRequests')
+        .collection('Requests')
         .where('Email', isEqualTo: user.email)
         .where('batchId', isEqualTo: widget.batchid)
         .snapshots()
@@ -31,7 +32,7 @@ class _LabqrState extends State<Labqr> {
       List<Map<String, dynamic>> allRequests = snapshot.docs.map((doc) {
         final data = doc.data();
         data['id'] = doc.id;
-        data['permission'] = "Lab";
+        data['permission'] = widget.role;
         if (data['createdAt'] is Timestamp) {
           data['createdAt'] =
               (data['createdAt'] as Timestamp).toDate().toIso8601String();
@@ -87,7 +88,7 @@ class _LabqrState extends State<Labqr> {
                     ),
                     FutureBuilder<QuerySnapshot>(
                       future: FirebaseFirestore.instance
-                          .collection('LabRequests')
+                          .collection('Requests')
                           .where('Email',
                               isEqualTo: FirebaseAuth.instance.currentUser?.email)
                           .where('batchId', isEqualTo: widget.batchid)
@@ -121,13 +122,13 @@ class _LabqrState extends State<Labqr> {
                                   onPressed: () async {
                                     // Delete the pending request
                                     await FirebaseFirestore.instance
-                                        .collection('LabRequests')
+                                        .collection('Requests')
                                         .doc(doc.id)
                                         .delete();
                                     
                                     // Check if there are any remaining requests for this batchId
                                     final remainingRequests = await FirebaseFirestore.instance
-                                        .collection('LabRequests')
+                                        .collection('Requests')
                                         .where('batchId', isEqualTo: widget.batchid)
                                         .get();
                                     
@@ -158,7 +159,7 @@ class _LabqrState extends State<Labqr> {
                     ),
                     FutureBuilder<QuerySnapshot>(
                       future: FirebaseFirestore.instance
-                          .collection('LabRequests')
+                          .collection('Requests')
                           .where('Email',
                               isEqualTo: FirebaseAuth.instance.currentUser?.email)
                           .where('batchId', isEqualTo: widget.batchid)

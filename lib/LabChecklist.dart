@@ -1,11 +1,15 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import 'package:iiitnr/main.dart';
 
 class LabChecklistPage extends StatefulWidget {
   final List<Map<String, dynamic>> data;
+  final String labCollectionName;
 
-  const LabChecklistPage({super.key, required this.data});
+  const LabChecklistPage({
+    super.key,
+    required this.data,
+    required this.labCollectionName,
+  });
 
   @override
   State<LabChecklistPage> createState() => _LabChecklistPageState();
@@ -19,184 +23,218 @@ class _LabChecklistPageState extends State<LabChecklistPage> {
   void initState() {
     super.initState();
     data = List.from(widget.data);
-    // Initialize selected items map
     for (var item in data) {
-      selectedItems[item['id']] = item['status'] ?? false;
+      selectedItems[item['id'] ?? ''] = item['status'] ?? false;
     }
   }
 
-  Future<void> _updateStatus(String docId, bool status) async {
+  Future<void> updateStatus(String docId, bool status) async {
     await FirebaseFirestore.instance
-        .collection('LabRequests')
+        .collection('Requests')
         .doc(docId)
         .update({'status': status});
   }
 
-  Future<void> _updateLabCount(
-    String equipment,
-    int count,
-    String equipmentType,
-  ) async {
-    String collectionName;
-    if (equipmentType == 'IOT') {
-      collectionName = 'Iotequipment';
-    } else if (equipmentType == 'DNP') {
-      collectionName = 'Dnpequipment';
-    } else {
-      return;
+  /// ISSUE: decrease lab stock by delta when approving a request
+  Future<void> updateLabCount(String equipmentName, int delta) async {
+    final docRef = FirebaseFirestore.instance
+        .collection('equipment')              // top‑level collection
+        .doc(widget.labCollectionName);       // e.g. 'Iotequipment'
+
+    final snap = await docRef.get();
+    if (!snap.exists) return;
+
+    final data = snap.data() as Map<String, dynamic>;
+    final List<dynamic> equipmentList =
+        List<dynamic>.from(data['equipment'] ?? []);
+
+    for (int i = 0; i < equipmentList.length; i++) {
+      final item = Map<String, dynamic>.from(equipmentList[i]);
+      if (item['Name'] == equipmentName) {
+        final currentCount = (item['count'] ?? 0) as int;
+        item['count'] = currentCount - delta;   // issuing → stock decreases
+        equipmentList[i] = item;
+        break;
+      }
     }
 
-    final snapshot = await FirebaseFirestore.instance
-        .collection(collectionName)
-        .where("Name", isEqualTo: equipment)
-        .get();
-
-    for (var doc in snapshot.docs) {
-      await doc.reference.update({'count': FieldValue.increment(-count)});
-    }
+    await docRef.update({'equipment': equipmentList});
   }
 
-  Future<void> _afterUpdateLabCount(
-    String equipment,
-    int count,
-    String equipmentType,
-  ) async {
-    String collectionName;
-    if (equipmentType == 'IOT') {
-      collectionName = 'Iotequipment';
-    } else if (equipmentType == 'DNP') {
-      collectionName = 'Dnpequipment';
-    } else {
-      return;
+  /// RETURN: increase lab stock by delta when student returns items
+  Future<void> updateLabCount_deleted(String equipmentName, int delta) async {
+    final docRef = FirebaseFirestore.instance
+        .collection('equipment')              // top‑level collection
+        .doc(widget.labCollectionName);       // e.g. 'Iotequipment'
+
+    final snap = await docRef.get();
+    if (!snap.exists) return;
+
+    final data = snap.data() as Map<String, dynamic>;
+    final List<dynamic> equipmentList =
+        List<dynamic>.from(data['equipment'] ?? []);
+
+    for (int i = 0; i < equipmentList.length; i++) {
+      final item = Map<String, dynamic>.from(equipmentList[i]);
+      if (item['Name'] == equipmentName) {
+        final currentCount = (item['count'] ?? 0) as int;
+        item['count'] = currentCount + delta;   // returning → stock increases
+        equipmentList[i] = item;
+        break;
+      }
     }
 
-    final snapshot = await FirebaseFirestore.instance
-        .collection(collectionName)
-        .where("Name", isEqualTo: equipment)
-        .get();
+    await docRef.update({'equipment': equipmentList});
+  }
 
-    for (var doc in snapshot.docs) {
-      await doc.reference.update({'count': FieldValue.increment(count)});
-    }
+  /// Bottom sheet to handle partial (or full) return
+  void _showPartialReturnSheet(Map<String, dynamic> item, int index) {
+    final TextEditingController controller = TextEditingController();
+    final int total = item['count'] as int;
+    final String name = item['Name'] as String;
+    final String itemId = item['id'] as String;
+
+    showModalBottomSheet(
+      context: context,
+      builder: (context) {
+        return Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Return for $name'),
+              const SizedBox(height: 8),
+              Text('Requested quantity: $total'),
+              const SizedBox(height: 8),
+              TextField(
+                controller: controller,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Quantity returned now',
+                ),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () async {
+                  final text = controller.text.trim();
+                  if (text.isEmpty) return;
+
+                  final int returnedNow = int.tryParse(text) ?? 0;
+                  if (returnedNow <= 0 || returnedNow > total) {
+                    // You can show a Snackbar here for invalid input
+                    return;
+                  }
+
+                  // 1) Increase lab stock by returnedNow
+                  await updateLabCount_deleted(name, returnedNow);
+
+                  // 2) Optionally track returned quantity in Requests
+                  await FirebaseFirestore.instance
+                      .collection('Requests')
+                      .doc(itemId)
+                      .update({
+                    'count': FieldValue.increment(-returnedNow),
+                  });
+
+                  // 3) If fully returned, delete the request document
+                  if (returnedNow == total) {
+                    await FirebaseFirestore.instance
+                        .collection('Requests')
+                        .doc(itemId)
+                        .delete();
+                    setState(() {
+                      data.removeAt(index);
+                      selectedItems.remove(itemId);
+                    });
+                  } else {
+                    // Partially returned: update local item count remaining
+                    setState(() {
+                      item['count'] = total - returnedNow;
+                    });
+                  }
+
+                  if (mounted) Navigator.pop(context);
+                },
+                child: const Text('Confirm'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Item Checklist')),
-      body: BackgroundImageWrapper(
-        child: data.isEmpty
-            ? const Center(child: Text('No items available'))
-            : Column(
-                children: [
-                  const SizedBox(height: 20),
-                  Text(
-                    "Student Email: ${data.first['Email']}",
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black,
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  Expanded(
-                    child: ListView.builder(
-                      itemCount: data.length,
-                      itemBuilder: (context, index) {
-                        final request = data[index];
-                        final String itemId = request['id'];
-                        bool isChecked = selectedItems[itemId] ?? false;
+      appBar: AppBar(
+        title: const Text("Item Checklist"),
+      ),
+      body: data.isEmpty
+          ? const Center(child: Text("No items available"))
+          : ListView.builder(
+              itemCount: data.length,
+              itemBuilder: (context, index) {
+                final item = data[index];
+                final itemId = item['id'] ?? '';
+                final isChecked = selectedItems[itemId] ?? false;
 
-                        return Card(
-                          margin: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 5,
+                return Card(
+                  child: ListTile(
+                    leading: isChecked
+                        ? const Icon(Icons.check_circle, color: Colors.green)
+                        : Checkbox(
+                            value: isChecked,
+                            onChanged: (val) {
+                              if (val != null) {
+                                setState(() {
+                                  selectedItems[itemId] = val;
+                                });
+                              }
+                            },
                           ),
-                          child: ListTile(
-                            leading: isChecked
-                                ? const Icon(
-                                    Icons.check_circle,
-                                    color: Colors.green,
-                                  )
-                                : Checkbox(
-                                    value: isChecked,
-                                    onChanged: (value) {
-                                      if (value != null) {
-                                        setState(() {
-                                          selectedItems[itemId] = value;
-                                        });
-                                      }
-                                    },
-                                  ),
-                            title: Text(
-                              "${request["Name"]} : ${request["count"]}",
-                            ),
-                            trailing: isChecked
-                                ? IconButton(
-                                    icon: const Icon(
-                                      Icons.delete,
-                                      color: Colors.red,
-                                    ),
-                                    onPressed: () async {
-                                      var docSnapshot = await FirebaseFirestore
-                                          .instance
-                                          .collection('LabRequests')
-                                          .doc(itemId)
-                                          .get();
-                                      String equipmentType =
-                                          request['type'] ?? '';
-                                      await _afterUpdateLabCount(
-                                          request["Name"],
-                                          request["count"],
-                                          equipmentType);
-                                      var id = docSnapshot.data()!["batchid"];
-                                      await FirebaseFirestore.instance
-                                          .collection('LabRequests')
-                                          .doc(itemId)
-                                          .delete();
-                                      setState(() {
-                                        data.removeAt(index);
-                                        selectedItems.remove(itemId);
-                                      });
-                                      if (data.isEmpty && mounted) {
-                                        await FirebaseFirestore.instance
-                                            .collection('batchid')
-                                            .doc(id)
-                                            .delete();
-                                        Navigator.of(context).pop();
-                                      }
-                                    },
-                                  )
-                                : null,
-                          ),
-                        );
-                      },
+                    // Uses Name and count from the request data
+                    title: Text(
+                      '${item['Name'] ?? 'Unknown'} : ${item['count']}',
                     ),
+                    trailing: isChecked
+                        ? IconButton(
+                            icon: const Icon(Icons.delete, color: Colors.red),
+                            onPressed: () {
+                              // Instead of always returning full count,
+                              // open partial‑return sheet.
+                              _showPartialReturnSheet(item, index);
+                            },
+                          )
+                        : null,
                   ),
-                  Padding(
-                    padding: const EdgeInsets.all(12.0),
-                    child: ElevatedButton(
-                      onPressed: () async {
-                        for (var request in data) {
-                          String itemId = request['id'];
-                          bool status = selectedItems[itemId] ?? false;
-                          await _updateStatus(itemId, status);
-                          if (status) {
-                            String equipmentType = request['type'] ?? '';
-                            await _updateLabCount(
-                              request["Name"],
-                              request["count"],
-                              equipmentType,
-                            );
-                          }
-                        }
-                        if (mounted) Navigator.of(context).pop();
-                      },
-                      child: const Text('Approve'),
-                    ),
-                  ),
-                ],
-              ),
+                );
+              },
+            ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () async {
+          // Approve selected items and decrease lab counts
+          for (var entry in selectedItems.entries) {
+            await updateStatus(entry.key, entry.value);
+
+            if (entry.value) {
+              final item = data.firstWhere(
+                (element) => element['id'] == entry.key,
+                orElse: () => {},
+              );
+              if (item.isNotEmpty) {
+                final name = item['Name'] as String;
+                final int delta = (item['count'] is int)
+                    ? item['count'] as int
+                    : int.parse(item['count'].toString());
+                await updateLabCount(name, delta);
+              }
+            }
+          }
+          Navigator.of(context).pop();
+        },
+        child: const Icon(Icons.check),
       ),
     );
   }
