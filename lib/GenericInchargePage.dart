@@ -64,9 +64,9 @@ class _LabInchargeState extends State<LabIncharge> {
         rows = const CsvToListConverter().convert(csvString);
       } else {
         if (picked.path == null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('File path is null.')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('File path is null.')));
           return;
         }
         final file = File(picked.path!);
@@ -116,16 +116,16 @@ class _LabInchargeState extends State<LabIncharge> {
           .collection('equipment')
           .doc('${widget.role}equipment')
           .set({
-        'equipment': FieldValue.arrayUnion(newEquipment),
-      }, SetOptions(merge: true));
+            'equipment': FieldValue.arrayUnion(newEquipment),
+          }, SetOptions(merge: true));
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Successfully imported $addedCount items.')),
       );
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error: $e')));
     }
   }
 
@@ -164,17 +164,16 @@ class _LabInchargeState extends State<LabIncharge> {
               ElevatedButton(
                 onPressed: () async {
                   final name = nameController.text.trim();
-                  final count =
-                      int.tryParse(countController.text.trim()) ?? 0;
+                  final count = int.tryParse(countController.text.trim()) ?? 0;
                   if (name.isNotEmpty && count > 0) {
                     await FirebaseFirestore.instance
                         .collection('equipment')
                         .doc('${widget.role}equipment')
                         .set({
-                      'equipment': FieldValue.arrayUnion([
-                        {'Name': name, 'count': count}
-                      ])
-                    }, SetOptions(merge: true));
+                          'equipment': FieldValue.arrayUnion([
+                            {'Name': name, 'count': count},
+                          ]),
+                        }, SetOptions(merge: true));
                     if (mounted) Navigator.pop(context);
                   }
                 },
@@ -197,10 +196,7 @@ class _LabInchargeState extends State<LabIncharge> {
             icon: const Icon(Icons.refresh),
             onPressed: () => setState(() {}),
           ),
-          IconButton(
-            onPressed: _signOut,
-            icon: const Icon(Icons.logout),
-          ),
+          IconButton(onPressed: _signOut, icon: const Icon(Icons.logout)),
         ],
       ),
       body: BackgroundImageWrapper(
@@ -213,40 +209,28 @@ class _LabInchargeState extends State<LabIncharge> {
                     .doc('${widget.role}equipment')
                     .snapshots(),
                 builder: (context, snapshot) {
-                  if (snapshot.connectionState ==
-                      ConnectionState.waiting) {
-                    return const Center(
-                      child: CircularProgressIndicator(),
-                    );
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(child: CircularProgressIndicator());
                   }
                   if (!snapshot.hasData || !snapshot.data!.exists) {
-                    return const Center(
-                      child: Text('No equipments found.'),
-                    );
+                    return const Center(child: Text('No equipments found.'));
                   }
 
-                  final data = snapshot.data!.data()
-                          as Map<String, dynamic>? ??
-                      {};
-                  final List<dynamic> equipment =
-                      data['equipment'] ?? [];
+                  final data =
+                      snapshot.data!.data() as Map<String, dynamic>? ?? {};
+                  final List<dynamic> equipment = data['equipment'] ?? [];
 
                   if (equipment.isEmpty) {
-                    return const Center(
-                      child: Text('No equipments found.'),
-                    );
+                    return const Center(child: Text('No equipments found.'));
                   }
 
                   return ListView.builder(
                     itemCount: equipment.length,
                     itemBuilder: (context, index) {
-                      final item = equipment[index]
-                              as Map<String, dynamic>? ??
-                          {};
-                      final String name =
-                          item['Name']?.toString() ?? '';
-                      final int count =
-                          (item['count'] ?? 0) as int;
+                      final item =
+                          equipment[index] as Map<String, dynamic>? ?? {};
+                      final String name = item['Name']?.toString() ?? '';
+                      final int count = (item['count'] ?? 0) as int;
 
                       return ListTile(
                         title: Text('$name : $count'),
@@ -257,11 +241,8 @@ class _LabInchargeState extends State<LabIncharge> {
                               icon: const Icon(Icons.remove),
                               onPressed: count > 0
                                   ? () async {
-                                      equipment[index]['count'] =
-                                          count - 1;
-                                      await snapshot
-                                          .data!.reference
-                                          .update({
+                                      equipment[index]['count'] = count - 1;
+                                      await snapshot.data!.reference.update({
                                         'equipment': equipment,
                                       });
                                     }
@@ -270,23 +251,17 @@ class _LabInchargeState extends State<LabIncharge> {
                             IconButton(
                               icon: const Icon(Icons.add),
                               onPressed: () async {
-                                equipment[index]['count'] =
-                                    count + 1;
-                                await snapshot.data!.reference
-                                    .update({
+                                equipment[index]['count'] = count + 1;
+                                await snapshot.data!.reference.update({
                                   'equipment': equipment,
                                 });
                               },
                             ),
                             IconButton(
-                              icon: const Icon(
-                                Icons.delete,
-                                color: Colors.red,
-                              ),
+                              icon: const Icon(Icons.delete, color: Colors.red),
                               onPressed: () async {
                                 equipment.removeAt(index);
-                                await snapshot.data!.reference
-                                    .update({
+                                await snapshot.data!.reference.update({
                                   'equipment': equipment,
                                 });
                               },
@@ -302,8 +277,7 @@ class _LabInchargeState extends State<LabIncharge> {
 
             // Simple CSV import button
             Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: ElevatedButton.icon(
                 onPressed: _handleBulkUpload,
                 icon: const Icon(Icons.upload_file),
@@ -315,24 +289,24 @@ class _LabInchargeState extends State<LabIncharge> {
               ),
             ),
             Padding(
-  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-  child: ElevatedButton.icon(
-    onPressed: () {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => Accepted(role: widget.role),
-        ),
-      );
-    },
-    icon: const Icon(Icons.check_circle_outline),
-    label: const Text('View Accepted Equipment'),
-    style: ElevatedButton.styleFrom(
-      backgroundColor: Colors.blue,
-      foregroundColor: Colors.white,
-    ),
-  ),
-),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => Accepted(role: widget.role),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.check_circle_outline),
+                label: const Text('View Accepted Equipment'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue,
+                  foregroundColor: Colors.white,
+                ),
+              ),
+            ),
 
             Padding(
               padding: const EdgeInsets.all(16),
@@ -364,10 +338,9 @@ class _LabInchargeState extends State<LabIncharge> {
   }
 }
 
-
 class Accepted extends StatefulWidget {
   final String role;
-  const Accepted({super.key,required this.role});
+  const Accepted({super.key, required this.role});
 
   @override
   State<Accepted> createState() => _AcceptedState();
@@ -386,12 +359,15 @@ class _AcceptedState extends State<Accepted> {
           ),
         ],
       ),
-      body:     BackgroundImageWrapper(
+      body: BackgroundImageWrapper(
         child: StreamBuilder<QuerySnapshot>(
           stream: FirebaseFirestore.instance
               .collection('Requests')
               .where('status', isEqualTo: true)
-              .where('equipment_collection', isEqualTo: '${widget.role}equipment')
+              .where(
+                'equipment_collection',
+                isEqualTo: '${widget.role}equipment',
+              )
               .snapshots(),
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
@@ -400,9 +376,9 @@ class _AcceptedState extends State<Accepted> {
             if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
               return const Center(child: Text('No accepted equipment yet.'));
             }
-        
+
             final docs = snapshot.data!.docs;
-        
+
             return ListView.builder(
               itemCount: docs.length,
               itemBuilder: (context, index) {
@@ -410,7 +386,7 @@ class _AcceptedState extends State<Accepted> {
                 final email = data['Email']?.toString() ?? 'Unknown';
                 final eqName = data['Name']?.toString() ?? 'Unknown';
                 final count = data['count'] ?? 0;
-        
+
                 return ListTile(
                   leading: const Icon(Icons.check_circle, color: Colors.green),
                   title: Text('$eqName  (x$count)'),
@@ -424,4 +400,3 @@ class _AcceptedState extends State<Accepted> {
     );
   }
 }
-

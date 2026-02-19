@@ -217,8 +217,9 @@ class _StudentPageState extends State<StudentPage> {
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance.collection('equipment').snapshots(),
       builder: (context, snapshot) {
-        if (!snapshot.hasData)
+        if (!snapshot.hasData) {
           return const Center(child: CircularProgressIndicator());
+        }
 
         List<Map<String, dynamic>> allMatches = [];
         for (var doc in snapshot.data!.docs) {
@@ -237,8 +238,9 @@ class _StudentPageState extends State<StudentPage> {
           }
         }
 
-        if (allMatches.isEmpty)
+        if (allMatches.isEmpty) {
           return const Center(child: Text("No matches found."));
+        }
 
         return ListView.builder(
           itemCount: allMatches.length,
@@ -288,8 +290,9 @@ class _LabPageState extends State<LabPage> {
       body: StreamBuilder<QuerySnapshot>(
         stream: FirebaseFirestore.instance.collection('labs').snapshots(),
         builder: (context, snapshot) {
-          if (!snapshot.hasData)
+          if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
+          }
           final labDocs = snapshot.data!.docs;
           return Column(
             children: [

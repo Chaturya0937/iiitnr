@@ -36,7 +36,9 @@ class _SplashScreenState extends State<SplashScreen> {
         if (!mounted) return;
 
         if (userDoc.exists) {
-          final role = userDoc['role'] as String? ?? '';
+          final data = userDoc.data();
+          final role = data?['role'] as String? ?? '';
+
           
           if (role == 'student') {
             Navigator.pushReplacement(
